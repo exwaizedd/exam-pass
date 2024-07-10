@@ -8,176 +8,180 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 pragma solidity 0.8.26;
 
 contract ExamPass is ERC721Enumerable, Ownable {
-using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
-uint private student_id;
-uint private invigilator_id;
+    uint private student_id;
+    uint private invigilator_id;
 
-struct Student {
-string matricNumber;
-string studentName;
-bool paid;
-bool registered;
-uint id;
+    struct Student {
+        string matricNumber;
+        string studentName;
+        bool paid;
+        bool registered;
+        uint id;
+        bool hasRequestedPass;
     }
 
-struct Invigilator {
-string name;
-string staffId;
-bool registered;
+    struct Invigilator {
+        string name;
+        string staffId;
+        bool registered;
     }
 
-mapping(address => Student) students;
-mapping(address => Invigilator) invigilators;
+    mapping(address => Student) students;
+    mapping(address => Invigilator) invigilators;
 
-
-mapping(bytes32 => bool) registeredStudentHash;
-mapping(bytes32 => bool) registeredInvigilatorHash;
+    mapping(bytes32 => bool) registeredStudentHash;
+    mapping(bytes32 => bool) registeredInvigilatorHash;
 
     EnumerableSet.Bytes32Set private EligibleStudentHashes;
     EnumerableSet.Bytes32Set private EligibleInvigilatorHashes;
 
-uint private tokenId_counter;
+    uint private tokenId_counter;
 
-modifier onlyAdmin() {
-require(msg.sender == owner(), "Not Authorized");
+    modifier onlyAdmin() {
+        require(msg.sender == owner(), "Not Authorized");
         _;
     }
 
-modifier onlyRegisteredStudents() {
-require(students[msg.sender].registered == true, "Not Registered");
+    modifier onlyRegisteredStudents() {
+        require(students[msg.sender].registered == true, "Not Registered");
         _;
     }
 
-modifier onlyRegisteredInvigilators() {
-require(invigilators[msg.sender].registered == true, "Invigilator not registered");
+    modifier onlyRegisteredInvigilators() {
+        require(invigilators[msg.sender].registered == true, "Invigilator not registered");
         _;
     }
 
-constructor() ERC721("ExaminationPass", "EXAM") Ownable(msg.sender) {
-transferOwnership(msg.sender);
-student_id = 0;
-invigilator_id = 0;
+    constructor() ERC721("ExaminationPass", "EXAM") Ownable(msg.sender) {
+        transferOwnership(msg.sender);
+        student_id = 0;
+        invigilator_id = 0;
     }
 
-event studentRegistered(address studentAddress, string studentName, string matricNumber, uint student_Id);
+    event studentRegistered(address studentAddress, string studentName, string matricNumber, uint student_Id);
+    event invigilatorRegistered(address invigilatorAddress, string _name, string _staffId);
+    event examinationPassRequested(address studentAddress, uint tokenId);
 
-function registerStudent(string memory _studentName, string memory _matricNumber ) external {
+    function registerStudent(string memory _studentName, string memory _matricNumber) external {
         bytes32 _hash = keccak256(abi.encodePacked(_studentName, _matricNumber));
-require(registeredStudentHash[_hash] == false, "Student has already registered");
-require(msg.sender != address(0), "Cannot register a zero address");
-require(msg.sender != owner(), "Admin cannot register as a student");
-require(students[msg.sender].registered == false, "Student already registered");
-require(EligibleStudentHashes.contains(_hash), "Invalid student credentials");
+        require(registeredStudentHash[_hash] == false, "Student has already registered");
+        require(msg.sender != address(0), "Cannot register a zero address");
+        require(msg.sender != owner(), "Admin cannot register as a student");
+        require(students[msg.sender].registered == false, "Student already registered");
+        require(EligibleStudentHashes.contains(_hash), "Invalid student credentials");
 
-students[msg.sender] = Student({
-matricNumber: _matricNumber,
-studentName: _studentName,
-paid: false,
-registered: true,
-id: student_id += 1
+        students[msg.sender] = Student({
+            matricNumber: _matricNumber,
+            studentName: _studentName,
+            paid: false,
+            registered: true,
+            id: student_id += 1,
+            hasRequestedPass: false
         });
 
+        registeredStudentHash[_hash] = true;
 
-registeredStudentHash[_hash] = true;
-
-
-emit studentRegistered(msg.sender, _studentName, _matricNumber, students[msg.sender].id);
+        emit studentRegistered(msg.sender, _studentName, _matricNumber, students[msg.sender].id);
     }
 
-event invigilatorRegistered(address invigilatorAddress, string _name, string _staffId);
-
-function registerInvigilator(string memory _name, string memory _staffId) external {
+    function registerInvigilator(string memory _name, string memory _staffId) external {
         bytes32 _hash = keccak256(abi.encodePacked(_name, _staffId));
-require(registeredInvigilatorHash[_hash] == false, "Staff has already been enrolled" );
-require(msg.sender != address(0), "Cannot register a zero address");
-require(msg.sender != owner(), "Admin cannot register as an invigilator");
-require(invigilators[msg.sender].registered == false, "Invigilator already registered");
-require(EligibleInvigilatorHashes.contains(_hash), "Invalid invigilator credentials");
+        require(registeredInvigilatorHash[_hash] == false, "Staff has already been enrolled");
+        require(msg.sender != address(0), "Cannot register a zero address");
+        require(msg.sender != owner(), "Admin cannot register as an invigilator");
+        require(invigilators[msg.sender].registered == false, "Invigilator already registered");
+        require(EligibleInvigilatorHashes.contains(_hash), "Invalid invigilator credentials");
 
-invigilators[msg.sender] = Invigilator({
-name: _name,
-staffId: _staffId,
-registered: true
+        invigilators[msg.sender] = Invigilator({
+            name: _name,
+            staffId: _staffId,
+            registered: true
         });
 
-registeredInvigilatorHash[_hash] = true;
+        registeredInvigilatorHash[_hash] = true;
 
-emit invigilatorRegistered(msg.sender, _name, invigilators[msg.sender].staffId);
+        emit invigilatorRegistered(msg.sender, _name, invigilators[msg.sender].staffId);
     }
 
-function mintNFT(address to) internal returns (uint) {
-uint tokenId = tokenId_counter;
-tokenId_counter++;
+    function mintNFT(address to) internal returns (uint) {
+        uint tokenId = tokenId_counter;
+        tokenId_counter++;
         _safeMint(to, tokenId);
 
-return tokenId;
+        return tokenId;
     }
 
-function requestExaminationPass() external onlyRegisteredStudents returns (uint) {
-require(students[msg.sender].paid == true, "Student has not paid the required fees");
-return mintNFT(msg.sender);
+    function requestExaminationPass() external onlyRegisteredStudents returns (uint) {
+        require(students[msg.sender].paid == true, "Student has not paid the required fees");
+        require(students[msg.sender].hasRequestedPass == false, "Student has already requested an examination pass");
+        uint tokenId = mintNFT(msg.sender);
+        students[msg.sender].hasRequestedPass = true;
+        emit examinationPassRequested(msg.sender, tokenId);
+        return tokenId;
     }
 
-function hasPaidFees(address studentAddress) external view onlyRegisteredStudents onlyAdmin returns (bool) {
-return students[studentAddress].paid;
+    function hasPaidFees(address studentAddress) external view onlyRegisteredStudents onlyAdmin returns (bool) {
+        return students[studentAddress].paid;
     }
 
-event studentMarkedPaid(address studentAddress);
+    event studentMarkedPaid(address studentAddress);
 
-function markFeesAsPaid(address studentAddress) external onlyAdmin {
-require(students[studentAddress].registered == true, "Student not registered");
-require(students[studentAddress].paid == false, "Student has already been marked as paid");
-students[studentAddress].paid = true;
-emit studentMarkedPaid(studentAddress);
+    function markFeesAsPaid(address studentAddress) external onlyAdmin {
+        require(students[studentAddress].registered == true, "Student not registered");
+        require(students[studentAddress].paid == false, "Student has already been marked as paid");
+        students[studentAddress].paid = true;
+        emit studentMarkedPaid(studentAddress);
     }
 
-function verifyExaminationPass(uint tokenId) external view onlyRegisteredInvigilators returns (
-string memory name,
-string memory matricNumber,
-bool registrationStatus,
-bool paidStatus,
-uint examToken,
-uint UID) {
-require (tokenId<tokenId_counter&& students[ownerOf(tokenId)].registered == true
-&&students[ownerOf(tokenId)].paid == true, "Invalid Exam Token");
-return (
-students[ownerOf(tokenId)].studentName,
-students[ownerOf(tokenId)].matricNumber,
-students[ownerOf(tokenId)].registered,
-students[ownerOf(tokenId)].paid,
-tokenId,
-students[ownerOf(tokenId)].id); 
+    function verifyExaminationPass(uint tokenId) external view onlyRegisteredInvigilators returns (
+        string memory name,
+        string memory matricNumber,
+        bool registrationStatus,
+        bool paidStatus,
+        uint examToken,
+        uint UID) {
+        require(tokenId < tokenId_counter && students[ownerOf(tokenId)].registered == true
+            && students[ownerOf(tokenId)].paid == true, "Invalid Exam Token");
+        return (
+            students[ownerOf(tokenId)].studentName,
+            students[ownerOf(tokenId)].matricNumber,
+            students[ownerOf(tokenId)].registered,
+            students[ownerOf(tokenId)].paid,
+            tokenId,
+            students[ownerOf(tokenId)].id
+        );
     }
 
-function addStudentHash(string memory studentName, string memory studentMatric) external onlyAdmin {
+    function addStudentHash(string memory studentName, string memory studentMatric) external onlyAdmin {
         bytes32 _hash;
         _hash = keccak256(abi.encodePacked(studentName, studentMatric));
-require(!EligibleStudentHashes.contains(_hash), "Student Already Added");
-EligibleStudentHashes.add(_hash);
+        require(!EligibleStudentHashes.contains(_hash), "Student Already Added");
+        EligibleStudentHashes.add(_hash);
     }
 
-function addInvigilatorHash(string memory staffName, string memory staffId) external onlyAdmin {
+    function addInvigilatorHash(string memory staffName, string memory staffId) external onlyAdmin {
         bytes32 _hash = keccak256(abi.encodePacked(staffName, staffId));
-require(!EligibleInvigilatorHashes.contains(_hash), "Invigilator Already Added");
-EligibleInvigilatorHashes.add(_hash);
+        require(!EligibleInvigilatorHashes.contains(_hash), "Invigilator Already Added");
+        EligibleInvigilatorHashes.add(_hash);
     }
 
-function removeStudentHash(string memory studentName, string memory studentMatric) external onlyAdmin {
+    function removeStudentHash(string memory studentName, string memory studentMatric) external onlyAdmin {
         bytes32 _hash = keccak256(abi.encodePacked(studentName, studentMatric));
-EligibleStudentHashes.remove(_hash);
+        EligibleStudentHashes.remove(_hash);
     }
 
-function removeInvigilatorHash(string memory staffName, string memory staffId) external onlyAdmin {
+    function removeInvigilatorHash(string memory staffName, string memory staffId) external onlyAdmin {
         bytes32 _hash = keccak256(abi.encodePacked(staffName, staffId));
-EligibleInvigilatorHashes.remove(_hash);
+        EligibleInvigilatorHashes.remove(_hash);
     }
 
-function getStudentHashes() external view onlyAdmin returns (bytes32[] memory) {
-return EligibleStudentHashes.values();
+    function getStudentHashes() external view onlyAdmin returns (bytes32[] memory) {
+        return EligibleStudentHashes.values();
     }
 
-function getInvigilatorHashes() external view onlyAdmin returns (bytes32[] memory) {
-return EligibleInvigilatorHashes.values();
+    function getInvigilatorHashes() external view onlyAdmin returns (bytes32[] memory) {
+        return EligibleInvigilatorHashes.values();
     }
 }
