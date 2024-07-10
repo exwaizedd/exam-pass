@@ -34,6 +34,9 @@ contract ExamPass is ERC721Enumerable, Ownable {
     mapping(bytes32 => bool) registeredStudentHash;
     mapping(bytes32 => bool) registeredInvigilatorHash;
 
+    mapping(bytes32 => address) private studentHashToAddress;
+    mapping(bytes32 => address) private invigilatorHashToAddress;
+
     EnumerableSet.Bytes32Set private EligibleStudentHashes;
     EnumerableSet.Bytes32Set private EligibleInvigilatorHashes;
 
@@ -71,6 +74,7 @@ contract ExamPass is ERC721Enumerable, Ownable {
         require(msg.sender != owner(), "Admin cannot register as a student");
         require(students[msg.sender].registered == false, "Student already registered");
         require(EligibleStudentHashes.contains(_hash), "Invalid student credentials");
+        require(studentHashToAddress[_hash] == address(0), "Student hash already managed by another address");
 
         students[msg.sender] = Student({
             matricNumber: _matricNumber,
@@ -82,6 +86,7 @@ contract ExamPass is ERC721Enumerable, Ownable {
         });
 
         registeredStudentHash[_hash] = true;
+        studentHashToAddress[_hash] = msg.sender;
 
         emit studentRegistered(msg.sender, _studentName, _matricNumber, students[msg.sender].id);
     }
@@ -93,6 +98,7 @@ contract ExamPass is ERC721Enumerable, Ownable {
         require(msg.sender != owner(), "Admin cannot register as an invigilator");
         require(invigilators[msg.sender].registered == false, "Invigilator already registered");
         require(EligibleInvigilatorHashes.contains(_hash), "Invalid invigilator credentials");
+        require(invigilatorHashToAddress[_hash] == address(0), "Invigilator hash already managed by another account");
 
         invigilators[msg.sender] = Invigilator({
             name: _name,
@@ -123,6 +129,10 @@ contract ExamPass is ERC721Enumerable, Ownable {
     }
 
     function hasPaidFees(address studentAddress) external view onlyRegisteredStudents onlyAdmin returns (bool) {
+        require(students[studentAddress].registered == true, "Student not registered");
+        bytes32 _hash = keccak256(abi.encodePacked(students[studentAddress].studentName, students[studentAddress].matricNumber));
+        require(studentHashToAddress[_hash] == studentAddress, "Student hash not managed by this address");
+
         return students[studentAddress].paid;
     }
 
@@ -169,11 +179,23 @@ contract ExamPass is ERC721Enumerable, Ownable {
 
     function removeStudentHash(string memory studentName, string memory studentMatric) external onlyAdmin {
         bytes32 _hash = keccak256(abi.encodePacked(studentName, studentMatric));
+        require(studentHashToAddress[_hash] != address(0), "Student hash not managed by any address");
+
+        address studentAddress = studentHashToAddress[_hash];
+        delete students[studentAddress];
+        delete registeredStudentHash[_hash];
+        delete studentHashToAddress[_hash];
+
         EligibleStudentHashes.remove(_hash);
     }
 
     function removeInvigilatorHash(string memory staffName, string memory staffId) external onlyAdmin {
         bytes32 _hash = keccak256(abi.encodePacked(staffName, staffId));
+        require(invigilatorHashToAddress[_hash] != address(0), "Invigilator hash not managed by any address");
+        address invigilatorAddress = invigilatorHashToAddress[_hash];
+        delete invigilators[invigilatorAddress];
+        delete registeredInvigilatorHash[_hash];
+        delete invigilatorHashToAddress[_hash];
         EligibleInvigilatorHashes.remove(_hash);
     }
 
@@ -183,5 +205,19 @@ contract ExamPass is ERC721Enumerable, Ownable {
 
     function getInvigilatorHashes() external view onlyAdmin returns (bytes32[] memory) {
         return EligibleInvigilatorHashes.values();
+    }
+
+    function tokensOfOwner(address owner) public view returns (uint[] memory) {
+        uint tokenCount = balanceOf(owner);
+        if (tokenCount == 0) {
+            // Return an empty array
+            return new uint[](0)  ;
+        } else {
+            uint[] memory result = new uint[](tokenCount);
+            for (uint i = 0; i < tokenCount; i++) {
+                result[i] = tokenOfOwnerByIndex(owner, i);
+            }
+            return result;
+        }
     }
 }
