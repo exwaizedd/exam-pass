@@ -107,6 +107,7 @@ contract ExamPass is ERC721Enumerable, Ownable {
         });
 
         registeredInvigilatorHash[_hash] = true;
+        invigilatorHashToAddress[_hash] = msg.sender;
 
         emit invigilatorRegistered(msg.sender, _name, invigilators[msg.sender].staffId);
     }
@@ -211,7 +212,7 @@ contract ExamPass is ERC721Enumerable, Ownable {
         uint tokenCount = balanceOf(owner);
         if (tokenCount == 0) {
             // Return an empty array
-            return new uint[](0)  ;
+            return new uint[](0) ;
         } else {
             uint[] memory result = new uint[](tokenCount);
             for (uint i = 0; i < tokenCount; i++) {
